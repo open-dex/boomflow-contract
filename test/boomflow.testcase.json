@@ -1,0 +1,420 @@
+{
+    "privateKeys": {
+        "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9": "10d2d81aa49a3149a5e2b9b5d6ac235997486329bde3a2a772df341ee42a928b",
+        "0x2912c64c499728C7a9Cf1fBC4CcEe713B97D49a5": "27081114c41304108a8204fabda1723f973a0a54385042fc40a415526a62a97a",
+        "0xBac260AA10580AC1d9239BC9494Bf1DeeE567066": "80e41656de3861b53e4c4883fa290fce59ea8077a8d9d4b95d61733300e5f1de",
+        "0x1b62588c6e8ACbF72260A854371860e745002aaE": "2df1bb1b3a50e88c746425cf7c74ccf9246f53d20015505a1a7d8ab3af4d5fb1",
+        "0x41EE55974C3242c74C3C92167A44cB42e3515696": "785193fd6e51a6aeba50effe8c58415b7c7039d0883c24401b668a64ad3779d3"
+    },
+    "orderSanity": [
+        {
+            "id": "orderSanity-0",
+            "description": "INVALID_AMOUNT",
+            "order": {
+                "address": "0x2912c64c499728C7a9Cf1fBC4CcEe713B97D49a5",
+                "product": "EOS-CNY",
+                "amount": 0,
+                "price": 1,
+                "type": "Limit",
+                "side": "Sell",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0,
+                "feeRateTaker": 0
+            },
+            "expectation": {
+                "status": "1"
+            }
+        },
+        {
+            "id": "orderSanity-1",
+            "description": "INVALID_PRICE",
+            "order": {
+                "address": "0x2912c64c499728C7a9Cf1fBC4CcEe713B97D49a5",
+                "product": "EOS-CNY",
+                "amount": 1,
+                "price": 0,
+                "type": "Limit",
+                "side": "Sell",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0,
+                "feeRateTaker": 0
+            },
+            "expectation": {
+                "status": "2"
+            }
+        }
+    ],
+    "executeTrade": [
+        {
+            "id": "executeTrade-0",
+            "description": "execute trades with sell maker and market buy taker without fees",
+            "makerOrder": {
+                "address": "0x2912c64c499728C7a9Cf1fBC4CcEe713B97D49a5",
+                "product": "EOS-CNY",
+                "amount": 1,
+                "price": 1,
+                "type": "Limit",
+                "side": "Sell",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0,
+                "feeRateTaker": 0
+            },
+            "takerOrder": {
+                "address": "0xBac260AA10580AC1d9239BC9494Bf1DeeE567066",
+                "product": "EOS-CNY",
+                "amount": 1,
+                "price": 0,
+                "type": "Market",
+                "side": "Buy",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0,
+                "feeRateTaker": 0
+            },
+            "expectation": {
+                "amountFilled": "1000000000000000000",
+                "makerFilled": "1000000000000000000",
+                "takerFilled": "1000000000000000000",
+                "makerFee": 0,
+                "takerFee": 0,
+                "isMakerFullyFilled": true,
+                "isTakerFullyFilled": true
+            }
+        },
+        {
+            "id": "executeTrade-1",
+            "description": "execute trades with sell maker and market buy taker with fees",
+            "makerOrder": {
+                "address": "0x2912c64c499728C7a9Cf1fBC4CcEe713B97D49a5",
+                "product": "EOS-CNY",
+                "amount": 2,
+                "price": 1,
+                "type": "Limit",
+                "side": "Sell",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0.5,
+                "feeRateTaker": 0
+            },
+            "takerOrder": {
+                "address": "0xBac260AA10580AC1d9239BC9494Bf1DeeE567066",
+                "product": "EOS-CNY",
+                "amount": 2,
+                "price": 0,
+                "type": "Market",
+                "side": "Buy",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0,
+                "feeRateTaker": 0.5
+            },
+            "expectation": {
+                "amountFilled": "2000000000000000000",
+                "makerFilled": "1000000000000000000",
+                "takerFilled": "1000000000000000000",
+                "makerFee": "1000000000000000000",
+                "takerFee": "1000000000000000000",
+                "isMakerFullyFilled": true,
+                "isTakerFullyFilled": true
+            }
+        },
+        {
+            "id": "executeTrade-2",
+            "description": "execute trades with buy maker and market sell taker with maker fee",
+            "makerOrder": {
+                "address": "0x2912c64c499728C7a9Cf1fBC4CcEe713B97D49a5",
+                "product": "EOS-CNY",
+                "amount": 2,
+                "price": 1,
+                "type": "Limit",
+                "side": "Buy",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0.5,
+                "feeRateTaker": 0
+            },
+            "takerOrder": {
+                "address": "0xBac260AA10580AC1d9239BC9494Bf1DeeE567066",
+                "product": "EOS-CNY",
+                "amount": 2,
+                "price": 0,
+                "type": "Market",
+                "side": "Sell",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0,
+                "feeRateTaker": 0
+            },
+            "expectation": {
+                "amountFilled": "2000000000000000000",
+                "makerFilled": "1000000000000000000",
+                "takerFilled": "2000000000000000000",
+                "makerFee": "1000000000000000000",
+                "takerFee": 0,
+                "isMakerFullyFilled": true,
+                "isTakerFullyFilled": true
+            }
+        },
+        {
+            "id": "executeTrade-3",
+            "description": "execute trades with buy maker and limit sell taker with maker fee",
+            "makerOrder": {
+                "address": "0x2912c64c499728C7a9Cf1fBC4CcEe713B97D49a5",
+                "product": "EOS-CNY",
+                "amount": 2,
+                "price": 1,
+                "type": "Limit",
+                "side": "Buy",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0.5,
+                "feeRateTaker": 0
+            },
+            "takerOrder": {
+                "address": "0xBac260AA10580AC1d9239BC9494Bf1DeeE567066",
+                "product": "EOS-CNY",
+                "amount": 2,
+                "price": 0.5,
+                "type": "Limit",
+                "side": "Sell",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0,
+                "feeRateTaker": 0
+            },
+            "expectation": {
+                "amountFilled": "2000000000000000000",
+                "makerFilled": "1000000000000000000",
+                "takerFilled": "2000000000000000000",
+                "makerFee": "1000000000000000000",
+                "takerFee": 0,
+                "isMakerFullyFilled": true,
+                "isTakerFullyFilled": true
+            }
+        },
+        {
+            "id": "executeTrade-4",
+            "description": "execute trades with sell maker and limit buy taker with fees",
+            "makerOrder": {
+                "address": "0x2912c64c499728C7a9Cf1fBC4CcEe713B97D49a5",
+                "product": "EOS-CNY",
+                "amount": 2,
+                "price": 1,
+                "type": "Limit",
+                "side": "Sell",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0.5,
+                "feeRateTaker": 0
+            },
+            "takerOrder": {
+                "address": "0xBac260AA10580AC1d9239BC9494Bf1DeeE567066",
+                "product": "EOS-CNY",
+                "amount": 2,
+                "price": 1,
+                "type": "Limit",
+                "side": "Buy",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0,
+                "feeRateTaker": 0.5
+            },
+            "expectation": {
+                "amountFilled": "2000000000000000000",
+                "makerFilled": "1000000000000000000",
+                "takerFilled": "1000000000000000000",
+                "makerFee": "1000000000000000000",
+                "takerFee": "1000000000000000000",
+                "isMakerFullyFilled": true,
+                "isTakerFullyFilled": true
+            }
+        },
+        {
+            "id": "executeTrade-5",
+            "description": "execute trades with wrong fees",
+            "makerOrder": {
+                "address": "0x2912c64c499728C7a9Cf1fBC4CcEe713B97D49a5",
+                "product": "EOS-CNY",
+                "amount": 1,
+                "price": 3,
+                "type": "Limit",
+                "side": "Sell",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0.1,
+                "feeRateTaker": 0
+            },
+            "takerOrder": {
+                "address": "0xBac260AA10580AC1d9239BC9494Bf1DeeE567066",
+                "product": "EOS-CNY",
+                "amount": 1,
+                "price": 0,
+                "type": "Market",
+                "side": "Buy",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0,
+                "feeRateTaker": 0.1
+            },
+            "expectation": {
+                "amountFilled": "333333333333333333",
+                "makerFilled": "900000000000000000",
+                "takerFilled": "300000000000000000",
+                "makerFee": "99999999999999999",
+                "takerFee": "33333333333333333",
+                "isMakerFullyFilled": false,
+                "isTakerFullyFilled": false
+            }
+        },
+        {
+            "id": "executeTrade-6",
+            "description": "execute trades with wrong fees",
+            "makerOrder": {
+                "address": "0x2912c64c499728C7a9Cf1fBC4CcEe713B97D49a5",
+                "product": "EOS-CNY",
+                "amount": 1,
+                "price": 213,
+                "type": "Limit",
+                "side": "Sell",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0.002,
+                "feeRateTaker": 0
+            },
+            "takerOrder": {
+                "address": "0xBac260AA10580AC1d9239BC9494Bf1DeeE567066",
+                "product": "EOS-CNY",
+                "amount": 1,
+                "price": 0,
+                "type": "Market",
+                "side": "Buy",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0,
+                "feeRateTaker": 0.1
+            },
+            "expectation": {
+                "amountFilled": "4694835680751173",
+                "makerFilled": "997999999999999850",
+                "takerFilled": "4225352112676056",
+                "makerFee": "1999999999999999",
+                "takerFee": "469483568075117",
+                "isMakerFullyFilled": false,
+                "isTakerFullyFilled": false
+            }
+        }
+    ],
+    "instantExchange": [
+        {
+            "id": "instantExchange-0",
+            "description": "execute instant exchange with market sell taker order without fees",
+            "takerOrder": {
+                "address": "0xBac260AA10580AC1d9239BC9494Bf1DeeE567066",
+                "product": "EOS-CNY",
+                "amount": 1,
+                "price": 0,
+                "type": "Market",
+                "side": "Sell",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0,
+                "feeRateTaker": 0
+            },
+            "baseMakerOrders": [
+                {
+                    "address": "0x2912c64c499728C7a9Cf1fBC4CcEe713B97D49a5",
+                    "product": "EOS-CNY",
+                    "amount": 1,
+                    "price": 1,
+                    "type": "Limit",
+                    "side": "Buy",
+                    "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                    "feeRateMaker": 0,
+                    "feeRateTaker": 0
+                }
+            ],
+            "quoteMakerOrders": [
+                {
+                    "address": "0x2912c64c499728C7a9Cf1fBC4CcEe713B97D49a5",
+                    "product": "EOS-CNY",
+                    "amount": 1,
+                    "price": 1,
+                    "type": "Limit",
+                    "side": "Sell",
+                    "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                    "feeRateMaker": 0,
+                    "feeRateTaker": 0
+                }
+            ],
+            "threshold": 0,
+            "expectation": {
+                "amountFilled": 1,
+                "baseMakerFilled": [0],
+                "quoteMakerFilled": [1],
+                "takerFilled": 1,
+                "baseMakerFees": [0],
+                "quoteMakerFees": [0],
+                "takerFee": 0
+            }
+        },
+        {
+            "id": "instantExchange-1",
+            "description": "execute instant exchange with market buy taker order without fees",
+            "takerOrder": {
+                "address": "0xBac260AA10580AC1d9239BC9494Bf1DeeE567066",
+                "product": "EOS-CNY",
+                "amount": 2,
+                "price": 0,
+                "type": "Market",
+                "side": "Buy",
+                "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                "feeRateMaker": 0,
+                "feeRateTaker": 0
+            },
+            "baseMakerOrders": [
+                {
+                    "address": "0x2912c64c499728C7a9Cf1fBC4CcEe713B97D49a5",
+                    "product": "EOS-CNY",
+                    "amount": 1,
+                    "price": 1,
+                    "type": "Limit",
+                    "side": "Sell",
+                    "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                    "feeRateMaker": 0,
+                    "feeRateTaker": 0
+                },
+                {
+                    "address": "0x1b62588c6e8ACbF72260A854371860e745002aaE",
+                    "product": "EOS-CNY",
+                    "amount": 1,
+                    "price": 1,
+                    "type": "Limit",
+                    "side": "Sell",
+                    "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                    "feeRateMaker": 0,
+                    "feeRateTaker": 0
+                }
+            ],
+            "quoteMakerOrders": [
+                {
+                    "address": "0x2912c64c499728C7a9Cf1fBC4CcEe713B97D49a5",
+                    "product": "EOS-CNY",
+                    "amount": 1,
+                    "price": 1,
+                    "type": "Limit",
+                    "side": "Buy",
+                    "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                    "feeRateMaker": 0,
+                    "feeRateTaker": 0
+                },
+                {
+                    "address": "0x41EE55974C3242c74C3C92167A44cB42e3515696",
+                    "product": "EOS-CNY",
+                    "amount": 1,
+                    "price": 1,
+                    "type": "Limit",
+                    "side": "Buy",
+                    "feeAddress": "0x98D513678D2c2B5f721E6148d4818E0F04FE23f9",
+                    "feeRateMaker": 0,
+                    "feeRateTaker": 0
+                }
+            ],
+            "threshold": 0,
+            "expectation": {
+                "amountFilled": 2,
+                "baseMakerFilled": [0, 0],
+                "quoteMakerFilled": [1, 1],
+                "takerFilled": 2,
+                "baseMakerFees": [0],
+                "quoteMakerFees": [0],
+                "takerFee": 0
+            }
+        }
+    ]
+}

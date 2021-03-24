@@ -1,0 +1,37 @@
+{
+  "name": "boomflow-contract",
+  "version": "1.0.0",
+  "description": "",
+  "main": "boomflow.js",
+  "scripts": {
+    "test": "truffle test --network ganache",
+    "coverage:boomflow": "truffle run coverage --file=\"test/boomflow.js\" --solcoverjs ./.boomflow.solcover.js --network coverage",
+    "coverage:crcl": "truffle run coverage --file=\"test/crcl.js\" --solcoverjs ./.crcl.solcover.js --network coverage"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/open-dex/boomflow-contract.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/open-dex/boomflow-contract/issues"
+  },
+  "homepage": "https://github.com/open-dex/boomflow-contract#readme",
+  "dependencies": {
+    "@openzeppelin/contracts": "2.5.0",
+    "big-number": "2.0.0",
+    "boomflow": "2.1.2",
+    "js-conflux-sdk": "0.10.0-alpha",
+    "truffle": "5.1.16"
+  },
+  "devDependencies": {
+    "@openzeppelin/test-helpers": "github:OpenZeppelin/openzeppelin-test-helpers",
+    "conflux-web-providers": "^1.36.7-alpha.0",
+    "coveralls": "^3.0.11",
+    "eth-keyring-controller": "^5.6.1",
+    "eth-sig-util": "^2.5.3",
+    "ganache-cli": "^6.9.1",
+    "solidity-coverage": "^0.7.4"
+  }
+}

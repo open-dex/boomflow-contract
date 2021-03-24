@@ -1,0 +1,9 @@
+dist: trusty
+language: node_js
+node_js:
+  - '13.8.0'
+install:
+  - npm install && npm install --only=dev
+script:
+  - npx truffle run coverage
+# - cat coverage/lcov.info | coveralls
