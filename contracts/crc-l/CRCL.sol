@@ -228,15 +228,8 @@ contract CRCL is ICRCL, WhitelistAdminRole, TimeLock, IERC777Recipient, LibSigna
 
         // Special handling to withdraw WCFX => CFX
         if (request.burn) {
-            // Burn the `request.amount` of CRCL from the `request.userAddress`
-            _burn(request.userAddress, request.amount);
-
-            // Burn the `request.amount` of WCFX from the current CRCL address, and receive CFX
-            IWrappedCfx(_tokenAddr).withdraw(request.amount);
-            address payable recipient = address(uint160(address(request.recipient)));
-            recipient.transfer(request.amount);
+            _withdrawCFX(request.userAddress, request.recipient, request.amount);
         } else {
-            // Withdraw the `request.amount` of CRCL
             _withdraw(request.userAddress, request.recipient, request.amount);
         }
     }
@@ -292,7 +285,11 @@ contract CRCL is ICRCL, WhitelistAdminRole, TimeLock, IERC777Recipient, LibSigna
      * Emits a {Withdraw} event indicating the amount withdrawn.
      */
     function forceWithdraw(address recipient) public withdrawRequested pastTimeLock {
-        _withdraw(_msgSender(), recipient, _balances[_msgSender()]);
+        if (_isCFX) {
+            _withdrawCFX(_msgSender(), recipient, _balances[_msgSender()]);
+        } else {
+            _withdraw(_msgSender(), recipient, _balances[_msgSender()]);
+        }
 
         setScheduleTime(_msgSender(), 0);
     }
@@ -349,6 +346,14 @@ contract CRCL is ICRCL, WhitelistAdminRole, TimeLock, IERC777Recipient, LibSigna
     function _withdraw(address sender, address recipient, uint256 amount) internal {
         _burn(sender, amount);
         IERC20(_tokenAddr).transfer(recipient, amount);
+        emit Withdraw(sender, recipient, amount);
+    }
+
+    function _withdrawCFX(address sender, address recipient, uint256 amount) internal {
+        _burn(sender, amount);
+        IWrappedCfx(_tokenAddr).withdraw(amount);
+        address payable to = address(uint160(address(recipient)));
+        to.transfer(amount);
         emit Withdraw(sender, recipient, amount);
     }
 
