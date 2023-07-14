@@ -191,6 +191,13 @@ contract CRCL is ICRCL, WhitelistAdminRole, TimeLock, IERC777Recipient, LibSigna
         _deposit(_msgSender(), to, amount);
     }
 
+    function depositCFX(address to) public payable whenNotPaused {
+        require(_isCFX, "CRCL: CRCL-CFX required");
+        require(to != address(0), "CRCL: deposit to zero address");
+        IWrappedCfx(_tokenAddr).deposit.value(msg.value)();
+        _deposit(_msgSender(), to, msg.value);
+    }
+
     /**
      * Withdraw the amount of token from sender's CRCL to recipient's ERC777 asset.
      * Only WhitelistAdmin (DEX) have the access permission.
@@ -221,11 +228,13 @@ contract CRCL is ICRCL, WhitelistAdminRole, TimeLock, IERC777Recipient, LibSigna
 
         // Special handling to withdraw WCFX => CFX
         if (request.burn) {
-            // Burn the `request.amount` of WCFX from the current CRCL address, and receive CFX
-            IWrappedCfx(_tokenAddr).burn(request.amount, abi.encodePacked(request.recipient));
-
             // Burn the `request.amount` of CRCL from the `request.userAddress`
             _burn(request.userAddress, request.amount);
+
+            // Burn the `request.amount` of WCFX from the current CRCL address, and receive CFX
+            IWrappedCfx(_tokenAddr).withdraw(request.amount);
+            address payable recipient = address(uint160(address(request.recipient)));
+            recipient.transfer(request.amount);
         } else {
             // Withdraw the `request.amount` of CRCL
             _withdraw(request.userAddress, request.recipient, request.amount);
@@ -259,11 +268,11 @@ contract CRCL is ICRCL, WhitelistAdminRole, TimeLock, IERC777Recipient, LibSigna
         require(request.nonce >= _timestamp, "CRCL: request expired");
         timestamps[requestHash] = request.nonce;
 
-        // Burn the `request.amount` of ERC777 from the current CRCL address
-        ITokenBase(_tokenAddr).burn(request.userAddress, request.amount, request.fee, request.recipient, request.defiRelayer);
-
         // Burn the `request.amount` of CRCL from the `request.userAddress`
         _burn(request.userAddress, request.amount);
+
+        // Burn the `request.amount` of ERC777 from the current CRCL address
+        ITokenBase(_tokenAddr).burn(request.userAddress, request.amount, request.fee, request.recipient, request.defiRelayer);
     }
 
     /**

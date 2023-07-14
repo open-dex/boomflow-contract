@@ -4,7 +4,9 @@ interface ICRCL {
     function totalSupply() external view returns (uint256);
     function balanceOf(address account) external view returns (uint256);
 
-    function transferFrom(address sender, address recipient, uint256 amount) external;
+    function deposit(address to, uint256 amount) external;
+    function depositCFX(address to) external payable;
+
     function requestForceWithdraw() external;
     function forceWithdraw(address recipient) external;
 
