@@ -1,46 +1,35 @@
 pragma solidity 0.5.16;
 pragma experimental ABIEncoderV2;
 
-import "./ICRCL.sol";
-import "./TimeLock.sol";
-import "../ERC777/IWrappedCfx.sol";
-
 import "@openzeppelin/contracts/access/roles/WhitelistAdminRole.sol";
-import "@openzeppelin/contracts/access/roles/WhitelistedRole.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC777/IERC777Recipient.sol";
 import "@openzeppelin/contracts/introspection/IERC1820Registry.sol";
 import "@openzeppelin/contracts/lifecycle/Pausable.sol";
 
-/* Remix IDE
-import "github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.5.0/contracts/access/roles/WhitelistAdminRole.sol";
-import "github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.5.0/contracts/access/roles/WhitelistedRole.sol";
-import "github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.5.0/contracts/token/ERC20/IERC20.sol";
-import "github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.5.0/contracts/token/ERC777/IERC777Recipient.sol";
-import "github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.5.0/contracts/introspection/IERC1820Registry.sol";
-import "github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.5.0/contracts/lifecycle/Pausable.sol";
-*/
-
+import "./ICRCL.sol";
+import "./TimeLock.sol";
+import "../ERC777/IWrappedCfx.sol";
 import "../ERC777/ITokenBase.sol";
-
 import "./libs/LibEIP712.sol";
 import "./libs/LibRequest.sol";
 import "../boomflow/libs/LibSignatureValidator.sol";
 import "../ERC1820Context.sol";
 
-contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Recipient, LibSignatureValidator, LibRequest, Pausable, ERC1820Context {
+contract CRCL is ICRCL, WhitelistAdminRole, TimeLock, IERC777Recipient, LibSignatureValidator, LibRequest, Pausable, ERC1820Context {
     using SafeMath for uint256;
 
     string _name;
-    bool _isCFX;
     string _symbol;
     uint256 _decimals;
 
     address _tokenAddr;
+    address _boomflow;
 
-    mapping (address => uint256) private _balances;
+    bool _isCFX;
 
     uint256 private _totalSupply;
+    mapping (address => uint256) private _balances;
 
     // Mapping of requestHash => timestamp; request hash only shows
     // up if it is completed
@@ -49,16 +38,19 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
     // Current min timestamp for valid requests
     uint256 private _timestamp;
 
-    constructor (string memory name, string memory symbol, uint8 decimals, address tokenAddr, uint256 deferTime, bool isCFX)
+    constructor (string memory name, string memory symbol, uint8 decimals, address tokenAddr, address boomflow, uint256 deferTime, bool isCFX)
         TimeLock(deferTime) public {
         _name = name;
         _symbol = symbol;
         _decimals = decimals;
         _tokenAddr = tokenAddr;
+        _boomflow = boomflow;
         _isCFX = isCFX;
 
         ERC1820_REGISTRY.setInterfaceImplementer(address(this), keccak256("ERC777TokensRecipient"), address(this));
     }
+
+    // -------------------- Getters --------------------
 
     function name() public view returns (string memory) {
         return _name;
@@ -84,9 +76,8 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
         return _tokenAddr;
     }
 
-    function setTokenAddress(address tokenAddr) public onlyWhitelistAdmin returns (bool) {
-        _tokenAddr = tokenAddr;
-        return true;
+    function getBoomflow() public view returns (address) {
+        return _boomflow;
     }
 
     //----------------- Storage Optimization ---------------
@@ -125,20 +116,22 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
 
     /**
      * Transfer the amount of token from sender to recipient.
-     * Only WhitelistedRoles (WhitelistAdmin, Boomflow) have the access permission.
+     * Only `boomflow` contract have the access permission.
      * Emits an {Transfer} event indicating the amount transferred.
      *
      * Requirements:
+     * - `msg.sender` must be the `boomflow` contract.
      * - `sender` and `recipient` cannot be the zero address.
      * - `sender` must have a balance of at least `amount`.
      */
-    function transferFrom(address sender, address recipient, uint256 amount) public onlyWhitelisted whenNotPaused returns (bool) {
+    function transferFrom(address sender, address recipient, uint256 amount) public whenNotPaused {
+        require(_msgSender() == _boomflow, "CRCL: boomflow required");
         require(sender != address(0), "CRCL: transfer from the zero address");
         require(recipient != address(0), "CRCL: transfer to the zero address");
 
-        _transfer(sender, recipient, amount);
-
-        return true;
+        if (amount > 0) {
+            _transfer(sender, recipient, amount);
+        }
     }
 
     /**
@@ -150,25 +143,23 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
      * - `request.userAddress` cannot be zero address.
      * - `request.amounts` and `request.recipients` must have the same length.
      */
-    function transferFor(TransferRequest memory request, bytes memory signature) public onlyWhitelistAdmin whenNotPaused returns (bool) {
+    function transferFor(TransferRequest memory request, bytes memory signature) public onlyWhitelistAdmin whenNotPaused {
         require(request.userAddress != address(0), "CRCL: transfer for zero address");
         require(request.amounts.length == request.recipients.length, "CRCL: amount length mismatch");
 
         bytes32 requestHash = getTransferRequestHash(request);
-        require(isValidSignature(requestHash,request.userAddress,signature), "CRCL: INVALID_TRANSFER_SIGNATURE");
+        require(isValidSignature(requestHash, request.userAddress,signature), "CRCL: INVALID_TRANSFER_SIGNATURE");
 
         // Validate timestamp
         require(request.nonce >= _timestamp, "CRCL: request expired");
         timestamps[requestHash] = request.nonce;
 
-        for(uint i = 0; i < request.recipients.length; i++){
+        for (uint i = 0; i < request.recipients.length; i++) {
             _transfer(request.userAddress, request.recipients[i], request.amounts[i]);
         }
-
-        return true;
     }
 
-    // Implement ERC777Recipient interface
+    // Implement ERC777Recipient interface for users to deposit.
     function tokensReceived(
         address,
         address from,
@@ -214,9 +205,8 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
      *
      * Requirements:
      * - The request hash has to be unique.
-     * - The `request.isCrosschain` is False.
      */
-    function withdraw(WithdrawRequest memory request, bytes memory signature) public onlyWhitelistAdmin whenNotPaused returns (bool) {
+    function withdraw(WithdrawRequest memory request, bytes memory signature) public onlyWhitelistAdmin whenNotPaused {
         // Validate the user signature
         bytes32 requestHash = getRequestHash(request);
         require(isValidSignature(requestHash,request.userAddress,signature), "INVALID_WITHDRAW_SIGNATURE");
@@ -235,13 +225,11 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
             IWrappedCfx(_tokenAddr).burn(request.amount, abi.encodePacked(request.recipient));
 
             // Burn the `request.amount` of CRCL from the `request.userAddress`
-            require(_burn(request.userAddress, request.amount), "CRCL: withdraw amount exceeds CRCL balance");
-            return true;
+            _burn(request.userAddress, request.amount);
+        } else {
+            // Withdraw the `request.amount` of CRCL
+            _withdraw(request.userAddress, request.recipient, request.amount);
         }
-
-        // Withdraw the `request.amount` of CRCL
-        require(_withdraw(request.userAddress, request.recipient, request.amount), "CRCL: withdraw error");
-        return true;
     }
 
     /**
@@ -261,9 +249,8 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
      *
      * Requirements:
      * - The request hash has to be unique.
-     * - The `request.isCrosschain` is True.
      */
-    function withdrawCrossChain(WithdrawCrossChainRequest memory request, bytes memory signature) public onlyWhitelistAdmin whenNotPaused returns (bool) {
+    function withdrawCrossChain(WithdrawCrossChainRequest memory request, bytes memory signature) public onlyWhitelistAdmin whenNotPaused {
         // Validate the user signature
         bytes32 requestHash = getWithdrawCrossChainRequestHash(request);
         require(isValidSignature(requestHash,request.userAddress,signature), "INVALID_WITHDRAW_SIGNATURE");
@@ -276,9 +263,7 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
         ITokenBase(_tokenAddr).burn(request.userAddress, request.amount, request.fee, request.recipient, request.defiRelayer);
 
         // Burn the `request.amount` of CRCL from the `request.userAddress`
-        require(_burn(request.userAddress, request.amount), "CRCL: withdraw amount exceeds CRCL balance");
-
-        return true;
+        _burn(request.userAddress, request.amount);
     }
 
     /**
@@ -287,9 +272,8 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
      *
      * Emits a {ScheduleWithdraw} event indicating the withdraw has been scheduled.
      */
-    function requestForceWithdraw() public returns (bool) {
+    function requestForceWithdraw() public {
         setScheduleTime(_msgSender(), block.timestamp);
-        return true;
     }
 
     /**
@@ -298,12 +282,10 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
      *
      * Emits a {Withdraw} event indicating the amount withdrawn.
      */
-    function forceWithdraw(address recipient) public withdrawRequested pastTimeLock returns (bool) {
-        require(_withdraw(_msgSender(), recipient, _balances[_msgSender()]), "CRCL: force withdraw error");
+    function forceWithdraw(address recipient) public withdrawRequested pastTimeLock {
+        _withdraw(_msgSender(), recipient, _balances[_msgSender()]);
 
         setScheduleTime(_msgSender(), 0);
-
-        return true;
     }
 
     /**
@@ -312,10 +294,7 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
      *
      * Note that `requestForceWithdraw` and `forceWithdraw` is not subject to pause
      */
-    function Pause()
-        public
-        onlyWhitelistAdmin
-    {
+    function Pause() public onlyWhitelistAdmin {
         pause();
     }
 
@@ -323,20 +302,15 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
      * Resume all paused functionalities of Boomflow.
      * Only WhitelistAdmin (DEX) have the access permission.
      */
-    function Resume()
-        public
-        onlyWhitelistAdmin
-    {
+    function Resume() public onlyWhitelistAdmin {
         unpause();
     }
 
     //Helper Functions
-    function _transfer(address sender, address recipient, uint256 amount) internal returns (bool) {
+    function _transfer(address sender, address recipient, uint256 amount) internal {
         _balances[sender] = _balances[sender].sub(amount, "CRCL: transfer amount exceeds locked balance");
         _balances[recipient] = _balances[recipient].add(amount);
         emit Transfer(sender, recipient, amount);
-
-        return true;
     }
 
     function _mint(address account, uint256 amount) internal {
@@ -346,14 +320,12 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
         emit Transfer(address(0), account, amount);
     }
 
-    function _burn(address account, uint256 amount) internal returns (bool) {
+    function _burn(address account, uint256 amount) internal {
         require(account != address(0), "CRCL: burn from the zero address");
 
         _balances[account] = _balances[account].sub(amount, "CRCL: burn amount exceeds balance");
         _totalSupply = _totalSupply.sub(amount);
         emit Transfer(account, address(0), amount);
-
-        return true;
     }
 
     function _deposit(address sender, address recipient, uint256 amount) internal {
@@ -365,12 +337,10 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
         emit Deposit(sender, recipient, amount);
     }
 
-    function _withdraw(address sender, address recipient, uint256 amount) internal returns (bool) {
-        require(_burn(sender, amount), "CRCL: withdraw amount exceeds CRCL balance");
+    function _withdraw(address sender, address recipient, uint256 amount) internal {
+        _burn(sender, amount);
         IERC20(_tokenAddr).transfer(recipient, amount);
         emit Withdraw(sender, recipient, amount);
-
-        return true;
     }
 
     function _min(uint256 value1, uint256 value2) internal pure returns (uint256) {
