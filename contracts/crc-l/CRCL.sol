@@ -47,10 +47,7 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
     mapping (bytes32 => uint256) public timestamps;
 
     // Current min timestamp for valid requests
-    uint256 public timestamp = 0;
-
-    mapping (address => bool) private _accountCheck;
-    address[] private _accountList;
+    uint256 private _timestamp;
 
     constructor (string memory name, string memory symbol, uint8 decimals, address tokenAddr, uint256 deferTime, bool isCFX)
         TimeLock(deferTime) public {
@@ -92,31 +89,17 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
         return true;
     }
 
-    function accountTotal() public view returns (uint256) {
-        return _accountList.length;
-    }
-
-    function accountList(uint256 begin) public view returns (address[100] memory) {
-        require(begin >= 0 && begin < _accountList.length, "CRCL: accountList out of range");
-        address[100] memory res;
-        uint256 range = _min(_accountList.length, begin.add(100));
-        for (uint256 i = begin; i < range; i++) {
-            res[i-begin] = _accountList[i];
-        }
-        return res;
-    }
-
     //----------------- Storage Optimization ---------------
     function getTimestamp() public view returns (uint256) {
-        return timestamp;
+        return _timestamp;
     }
 
     function setTimestamp(uint256 newTimestamp)
         public
         onlyWhitelistAdmin
     {
-        require(newTimestamp > timestamp, "INVALID_NEW_TIMESTAMP");
-        timestamp = newTimestamp;
+        require(newTimestamp > _timestamp, "INVALID_NEW_TIMESTAMP");
+        _timestamp = newTimestamp;
     }
 
     function removeObsoleteData(bytes32[] memory hashes)
@@ -128,7 +111,7 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
             require(timestamps[hashes[i]] != 0, "INVALID_FINISHED_STATUS");
 
             // Request timestamp is lower than current timestamp
-            require(timestamps[hashes[i]] < timestamp, "INVALID_TIMESTAMP");
+            require(timestamps[hashes[i]] < _timestamp, "INVALID_TIMESTAMP");
 
             // Remove requst data
             removeData(hashes[i]);
@@ -175,7 +158,7 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
         require(isValidSignature(requestHash,request.userAddress,signature), "CRCL: INVALID_TRANSFER_SIGNATURE");
 
         // Validate timestamp
-        require(request.nonce >= timestamp, "CRCL: request expired");
+        require(request.nonce >= _timestamp, "CRCL: request expired");
         timestamps[requestHash] = request.nonce;
 
         for(uint i = 0; i < request.recipients.length; i++){
@@ -239,7 +222,7 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
         require(isValidSignature(requestHash,request.userAddress,signature), "INVALID_WITHDRAW_SIGNATURE");
 
         // Validate timestamp
-        require(request.nonce >= timestamp, "CRCL: request expired");
+        require(request.nonce >= _timestamp, "CRCL: request expired");
         timestamps[requestHash] = request.nonce;
 
         // unless for DEX-CFX in which case isCrosschain == true will
@@ -286,7 +269,7 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
         require(isValidSignature(requestHash,request.userAddress,signature), "INVALID_WITHDRAW_SIGNATURE");
 
         // Validate timestamp
-        require(request.nonce >= timestamp, "CRCL: request expired");
+        require(request.nonce >= _timestamp, "CRCL: request expired");
         timestamps[requestHash] = request.nonce;
 
         // Burn the `request.amount` of ERC777 from the current CRCL address
@@ -349,11 +332,6 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
 
     //Helper Functions
     function _transfer(address sender, address recipient, uint256 amount) internal returns (bool) {
-        if (!_accountCheck[recipient]) {
-            _accountCheck[recipient] = true;
-            _accountList.push(recipient);
-        }
-
         _balances[sender] = _balances[sender].sub(amount, "CRCL: transfer amount exceeds locked balance");
         _balances[recipient] = _balances[recipient].add(amount);
         emit Transfer(sender, recipient, amount);
@@ -363,12 +341,6 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
 
     function _mint(address account, uint256 amount) internal {
         require(account != address(0), "CRCL: mint to the zero address");
-
-        if (!_accountCheck[account]) {
-            _accountCheck[account] = true;
-            _accountList.push(account);
-        }
-
         _totalSupply = _totalSupply.add(amount);
         _balances[account] = _balances[account].add(amount);
         emit Transfer(address(0), account, amount);

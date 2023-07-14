@@ -74,12 +74,6 @@ contract ERC777 is Context, IERC777, IERC20, Pausable, ERC1820Context {
     // ERC20-allowances
     mapping (address => mapping (address => uint256)) private _allowances;
 
-    // data migration
-    address public _creator;
-    address[] public _account_list;
-    mapping(address => bool) _account_set;
-    bool public in_migration;
-
     /**
      * @dev `defaultOperators` may be an empty array.
      */
@@ -94,15 +88,11 @@ contract ERC777 is Context, IERC777, IERC20, Pausable, ERC1820Context {
         _defaultOperatorsArray = defaultOperators;
         for (uint256 i = 0; i < _defaultOperatorsArray.length; i++) {
             _defaultOperators[_defaultOperatorsArray[i]] = true;
-            addAccount(_defaultOperatorsArray[i]);
         }
 
         // register interfaces
         ERC1820_REGISTRY.setInterfaceImplementer(address(this), keccak256("ERC777Token"), address(this));
         ERC1820_REGISTRY.setInterfaceImplementer(address(this), keccak256("ERC20Token"), address(this));
-
-        _creator = _msgSender();
-        in_migration = true;
     }
 
     /**
@@ -217,9 +207,6 @@ contract ERC777 is Context, IERC777, IERC20, Pausable, ERC1820Context {
         }
 
         emit AuthorizedOperator(operator, _msgSender());
-
-        addAccount(_msgSender());
-        addAccount(operator);
     }
 
     /**
@@ -235,9 +222,6 @@ contract ERC777 is Context, IERC777, IERC20, Pausable, ERC1820Context {
         }
 
         emit RevokedOperator(operator, _msgSender());
-
-        addAccount(_msgSender());
-        addAccount(operator);
     }
 
     /**
@@ -360,8 +344,6 @@ contract ERC777 is Context, IERC777, IERC20, Pausable, ERC1820Context {
 
         emit Minted(operator, account, amount, userData, operatorData);
         emit Transfer(address(0), account, amount);
-
-        addAccount(account);
     }
 
     /**
@@ -393,8 +375,6 @@ contract ERC777 is Context, IERC777, IERC20, Pausable, ERC1820Context {
         _move(operator, from, to, amount, userData, operatorData);
 
         _callTokensReceived(operator, from, to, amount, userData, operatorData, requireReceptionAck);
-
-        addAccount(to);
     }
 
     /**
@@ -441,8 +421,6 @@ contract ERC777 is Context, IERC777, IERC20, Pausable, ERC1820Context {
 
         emit Sent(operator, from, to, amount, userData, operatorData);
         emit Transfer(from, to, amount);
-
-        addAccount(to);
     }
 
     function _approve(address holder, address spender, uint256 value) private {
@@ -453,9 +431,6 @@ contract ERC777 is Context, IERC777, IERC20, Pausable, ERC1820Context {
 
         _allowances[holder][spender] = value;
         emit Approval(holder, spender, value);
-
-        addAccount(holder);
-        addAccount(spender);
     }
 
     /**
@@ -510,63 +485,6 @@ contract ERC777 is Context, IERC777, IERC20, Pausable, ERC1820Context {
             IERC777Recipient(implementer).tokensReceived(operator, from, to, amount, userData, operatorData);
         } else if (requireReceptionAck) {
             require(!to.isContract(), "ERC777: token recipient contract has no implementer for ERC777TokensRecipient");
-        }
-    }
-
-    /*===== Data Migration =====*/
-    modifier whenMigration() {
-        require(in_migration, "migration finished");
-        require(paused(), "token not paused in migration");
-        _;
-    }
-
-    modifier onlyCreator() {
-        require(_msgSender() == _creator, "sender is not creator");
-        _;
-    }
-
-    function finishMigration() public onlyCreator {
-        in_migration = false;
-    }
-
-    function addAccount(address account) public {
-        if (!_account_set[account]) {
-            _account_set[account] = true;
-            _account_list.push(account);
-        }
-    }
-
-    function accountCount() public returns(uint) {
-        return _account_list.length;
-    }
-
-    function setTotalSupply(uint256 totalSupply) public onlyCreator whenMigration {
-        _totalSupply = totalSupply;
-    }
-
-    function setBalance(address account, uint256 balance) public onlyCreator whenMigration {
-        _balances[account] = balance;
-    }
-
-    function setAllowance(address holder, address spender, uint256 amount) public onlyCreator whenMigration {
-        _approve(holder, spender, amount);
-    }
-
-    function setOpeartor(address tokenHolder, address operator) public onlyCreator whenMigration {
-        require(tokenHolder != operator, "ERC777: authorizing self as operator");
-
-        if (_defaultOperators[operator]) {
-            delete _revokedDefaultOperators[tokenHolder][operator];
-        } else {
-            _operators[tokenHolder][operator] = true;
-        }
-    }
-
-    function setRevokedDefaultOperator(address tokenHolder, address operator) public onlyCreator whenMigration {
-        require(tokenHolder != operator, "ERC777: revoking self as operator");
-
-        if (_defaultOperators[operator]) {
-            _revokedDefaultOperators[tokenHolder][operator] = true;
         }
     }
 }
