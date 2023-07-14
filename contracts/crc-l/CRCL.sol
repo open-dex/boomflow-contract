@@ -26,8 +26,9 @@ import "../ERC777/ITokenBase.sol";
 import "./libs/LibEIP712.sol";
 import "./libs/LibRequest.sol";
 import "../boomflow/libs/LibSignatureValidator.sol";
+import "../ERC1820Context.sol";
 
-contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Recipient, LibSignatureValidator, LibRequest, Pausable {
+contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Recipient, LibSignatureValidator, LibRequest, Pausable, ERC1820Context {
     using SafeMath for uint256;
 
     string _name;
@@ -47,10 +48,6 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
 
     // Current min timestamp for valid requests
     uint256 public timestamp = 0;
-
-    //0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24
-    //0x88887eD889e776bCBe2f0f9932EcFaBcDfCd1820
-    IERC1820Registry constant private ERC1820_REGISTRY = IERC1820Registry(address(0x88887eD889e776bCBe2f0f9932EcFaBcDfCd1820));
 
     mapping (address => bool) private _accountCheck;
     address[] private _accountList;
@@ -204,13 +201,20 @@ contract CRCL is ICRCL, WhitelistAdminRole, WhitelistedRole, TimeLock, IERC777Re
         require(to == address(this), "CRCL: deposit not to CRCL");
 
         // Recover the recipient address
+        require(userData.length == 20, "CRCL: userData should be an address");
         address addr = address(0);
         assembly {
-            addr := mload(add(userData,20))
+            addr := mload(add(userData, 20))
         }
-        if (addr != address(0)) {
-            _deposit(from, addr, amount);
-        }
+
+        require(addr != address(0), "CRCL: deposit to zero address");
+        _deposit(from, addr, amount);
+    }
+
+    function deposit(address to, uint256 amount) public whenNotPaused {
+        require(to != address(0), "CRCL: deposit to zero address");
+        IERC20(_tokenAddr).transferFrom(_msgSender(), address(this), amount);
+        _deposit(_msgSender(), to, amount);
     }
 
     /**

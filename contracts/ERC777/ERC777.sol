@@ -10,6 +10,8 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/introspection/IERC1820Registry.sol";
 import "@openzeppelin/contracts/lifecycle/Pausable.sol";
 
+import "../ERC1820Context.sol";
+
 /* Remix IDE
 import "github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.5.0/contracts/GSN/Context.sol";
 import "github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.5.0/contracts/token/ERC777/IERC777.sol";
@@ -37,12 +39,9 @@ import "github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.5.0/contracts/lif
  * are no special restrictions in the amount of tokens that created, moved, or
  * destroyed. This makes integration with ERC20 applications seamless.
  */
-contract ERC777 is Context, IERC777, IERC20, Pausable {
+contract ERC777 is Context, IERC777, IERC20, Pausable, ERC1820Context {
     using SafeMath for uint256;
     using Address for address;
-
-    //IERC1820Registry constant private ERC1820_REGISTRY = IERC1820Registry(address(0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24));
-    IERC1820Registry constant private ERC1820_REGISTRY = IERC1820Registry(address(0x866aCA87FF33a0ae05D2164B3D999A804F583222));
 
     mapping(address => uint256) private _balances;
 
