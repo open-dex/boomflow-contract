@@ -15,12 +15,11 @@ import "github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.5.0/contracts/uti
 
 import "../crc-l/ICRCL.sol";
 
-import "./libs/LibOrder.sol";
 import "./libs/LibFillResults.sol";
 import "./libs/LibSignatureValidator.sol";
 import "./libs/LibRequest.sol";
 
-contract Boomflow is WhitelistAdminRole, WhitelistedRole, LibOrder, ReentrancyGuard, LibSignatureValidator, LibRequest, Pausable {
+contract Boomflow is WhitelistAdminRole, WhitelistedRole, ReentrancyGuard, LibSignatureValidator, LibRequest, Pausable {
     using SafeMath for uint;
 
     // Contract fee cannot float over 30%

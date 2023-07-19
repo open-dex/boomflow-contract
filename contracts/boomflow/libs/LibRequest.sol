@@ -1,11 +1,10 @@
 pragma solidity 0.5.16;
 pragma experimental ABIEncoderV2;
 
-import "./LibEIP712.sol";
 import "./LibOrder.sol";
 
 contract LibRequest is
-    LibEIP712, LibOrder
+    LibOrder
 {
     // solhint-disable max-line-length
     string private constant REQUEST_TYPE = "CancelRequest(Order order,uint256 nonce)Order(address userAddress,uint256 amount,uint256 price,uint256 orderType,bool side,uint256 salt,address baseAssetAddress,address quoteAssetAddress,address feeAddress,uint256 makerFeePercentage,uint256 takerFeePercentage)";

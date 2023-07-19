@@ -3,7 +3,7 @@ pragma solidity 0.5.16;
 import "./LibEIP712.sol";
 
 contract LibOrder is
-    LibEIP712
+    LibEIP712("Boomflow")
 {
     string private constant ORDER_TYPE = "Order(address userAddress,uint256 amount,uint256 price,uint256 orderType,bool side,uint256 salt,address baseAssetAddress,address quoteAssetAddress,address feeAddress,uint256 makerFeePercentage,uint256 takerFeePercentage)";
     bytes32 private constant ORDER_TYPEHASH = keccak256(abi.encodePacked(ORDER_TYPE));

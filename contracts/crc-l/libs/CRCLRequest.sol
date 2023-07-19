@@ -1,10 +1,10 @@
 pragma solidity 0.5.16;
 pragma experimental ABIEncoderV2;
 
-import "./LibEIP712.sol";
+import "../../boomflow/libs/LibEIP712.sol";
 
-contract LibRequest is
-    LibEIP712
+contract CRCLRequest is
+    LibEIP712("CRCL")
 {
     // solhint-disable max-line-length
     // Withdraw type hash

@@ -4,19 +4,17 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/access/roles/WhitelistAdminRole.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC777/IERC777Recipient.sol";
-import "@openzeppelin/contracts/introspection/IERC1820Registry.sol";
 import "@openzeppelin/contracts/lifecycle/Pausable.sol";
 
 import "./ICRCL.sol";
 import "./TimeLock.sol";
 import "../ERC777/IWrappedCfx.sol";
 import "../ERC777/ITokenBase.sol";
-import "./libs/LibEIP712.sol";
-import "./libs/LibRequest.sol";
+import "./libs/CRCLRequest.sol";
 import "../boomflow/libs/LibSignatureValidator.sol";
 import "../ERC1820Context.sol";
 
-contract CRCL is ICRCL, WhitelistAdminRole, TimeLock, IERC777Recipient, LibSignatureValidator, LibRequest, Pausable, ERC1820Context {
+contract CRCL is ICRCL, WhitelistAdminRole, TimeLock, IERC777Recipient, LibSignatureValidator, CRCLRequest, Pausable, ERC1820Context {
     using SafeMath for uint256;
 
     string _name;

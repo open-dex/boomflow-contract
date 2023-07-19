@@ -18,14 +18,9 @@ pragma solidity 0.5.16;
 
 contract LibEIP712 {
     uint256 public chainId;
-    address verifyingContract = address(this);
-    //address verifyingContract = 0x0971B5d216af52c411C9016BBc63665b4E6f2542;
-    //address verifyingContract = 0x60AEA6C6f50AD5998683b0FABFe122F2A81a35Fd;
+
     // EIP191 header for EIP712 prefix
     //string constant internal EIP191_HEADER = "\x19\x01";
-
-    // EIP712 Domain Name value
-    string constant internal EIP712_DOMAIN_NAME = "Boomflow";
 
     // EIP712 Domain Version value
     string constant internal EIP712_DOMAIN_VERSION = "1.0";
@@ -44,9 +39,7 @@ contract LibEIP712 {
     // solhint-disable-next-line var-name-mixedcase
     bytes32 public EIP712_DOMAIN_HASH;
 
-    constructor ()
-        public
-    {
+    constructor(string memory domain) public {
         uint256 id;
         assembly {
             id := chainid()
@@ -55,10 +48,10 @@ contract LibEIP712 {
 
         EIP712_DOMAIN_HASH = keccak256(abi.encode(
             EIP712_DOMAIN_SEPARATOR_SCHEMA_HASH,
-            keccak256(bytes(EIP712_DOMAIN_NAME)),
+            keccak256(bytes(domain)),
             keccak256(bytes(EIP712_DOMAIN_VERSION)),
             chainId,
-            verifyingContract
+            address(this)
         ));
     }
 
