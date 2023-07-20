@@ -6,15 +6,7 @@ import "@openzeppelin/contracts/access/roles/WhitelistedRole.sol";
 import "@openzeppelin/contracts/lifecycle/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/* Remix IDE
-import "github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.5.0/contracts/access/roles/WhitelistAdminRole.sol";
-import "github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.5.0/contracts/access/roles/WhitelistedRole.sol";
-import "github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.5.0/contracts/lifecycle/Pausable.sol";
-import "github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.5.0/contracts/utils/ReentrancyGuard.sol";
-*/
-
 import "../crc-l/ICRCL.sol";
-
 import "./libs/LibFillResults.sol";
 import "./libs/LibSignatureValidator.sol";
 import "./libs/LibRequest.sol";
@@ -43,12 +35,6 @@ contract Boomflow is WhitelistAdminRole, WhitelistedRole, ReentrancyGuard, LibSi
 
     // Mapping of orderHash => cancelled
     mapping (bytes32 => bool) public cancelled;
-
-    // Mapping of orderHash => all instantExchange base orders
-    mapping (bytes32 => Order[]) baseMakerOrders;
-
-    // Mapping of orderHash => all instantExchange quote orders
-    mapping (bytes32 => Order[]) quoteMakerOrders;
 
     // Mapping of orderHash => timestamp; order hash only shows
     // up if it's status is one of (cancelled or finalized or filled)
@@ -87,7 +73,7 @@ contract Boomflow is WhitelistAdminRole, WhitelistedRole, ReentrancyGuard, LibSi
         uint256 filled;
         uint256 max;
         bool cancelled;
-        bool flag;
+        bool flag; // whether recorded
     }
 
     function getOrderData(bytes32 orderHash)
@@ -95,29 +81,12 @@ contract Boomflow is WhitelistAdminRole, WhitelistedRole, ReentrancyGuard, LibSi
         view
         returns (OrderData memory orderData)
     {
-        bool hasMakerOrdersRecorded = (baseMakerOrders[orderHash].length != 0) || (quoteMakerOrders[orderHash].length != 0);
         orderData = OrderData({
             filled: filled[orderHash],
             max: max[orderHash],
             cancelled: cancelled[orderHash],
-            flag: hasMakerOrdersRecorded
+            flag: recorded[orderHash]
         });
-    }
-
-    function getBaseMakerOrders(bytes32 orderHash)
-        public
-        view
-        returns (Order[] memory orders)
-    {
-        orders = baseMakerOrders[orderHash];
-    }
-
-    function getQuoteMakerOrders(bytes32 orderHash)
-        public
-        view
-        returns (Order[] memory orders)
-    {
-        orders = quoteMakerOrders[orderHash];
     }
 
     //----------------- Storage Optimization ---------------
@@ -209,158 +178,6 @@ contract Boomflow is WhitelistAdminRole, WhitelistedRole, ReentrancyGuard, LibSi
     }
 
     //----------------- End DeFi Index ---------------------
-
-    // Exchange
-    /**
-     * Record the matched base maker orders and quote maker orders for a specific taker order.
-     * The function should be called prior to `executeInstantExchangeTrade`
-     * Only Whitelistlisted (DEX) have the access permission.
-     *
-     * The function could be run in batches for a single taker order, and `makerOrders` could
-     * contains a mixture of base and quote maker orders, as long as DEX ensures the order of
-     * base maker orders and that of quote maker orders are unploaded in the exact order, respectively.
-     *
-     * Requirements:
-     * - All base maker orders should have the same base and quote assets
-     * - All quote maker orders should have the same base and quote assets
-     * - All base maker orders should have the same base assets as the taker order
-     * - All quote maker orders should have the same quote assets as the taker order
-     */
-    function recordInstantExchangeOrders(
-        Order memory takerOrder,
-        Order[] memory makerOrders,
-        bytes memory takerSignature,
-        bytes[] memory makerSignatures
-    )
-        public
-        onlyWhitelisted
-        whenNotPaused
-        nonReentrant
-    {
-        // Taker order must be market order in Instant Exchange
-        require(OrderType(takerOrder.orderType) == OrderType.Market, "INVALID_TAKER_TYPE");
-
-        // Base and quote makerOrder arrays are compatible
-        require(makerOrders.length == makerSignatures.length, "SIGNATURE_LENGTH_MISMATCH");
-
-        OrderInfo memory takerOrderInfo = getOrderInfo(takerOrder);
-
-        // Record the order if not seen before
-        if (takerOrderInfo.filledAmount == 0) {
-            max[takerOrderInfo.orderHash] = takerOrder.amount;
-        }
-
-        // Assert if the taker order is valid
-        assertFillableOrder(
-            takerOrder,
-            takerOrderInfo,
-            takerSignature
-        );
-
-        for (uint i = 0; i < makerOrders.length; i++) {
-            require(OrderType(makerOrders[i].orderType) == OrderType.Limit, "INVALID_MAKER_TYPE");
-
-            OrderInfo memory makerOrderInfo = getOrderInfo(makerOrders[i]);
-
-            // Record the order if not seen before
-            if (makerOrderInfo.filledAmount == 0) {
-                max[makerOrderInfo.orderHash] = makerOrders[i].amount;
-            }
-
-            // Assert if the maker order is valid
-            assertFillableOrder(
-                makerOrders[i],
-                makerOrderInfo,
-                makerSignatures[i]
-            );
-
-            // If a maker order's base assets is equal to the taker order's base asset, then push it to `baseMakerOrders`
-            // If a maker order's quote assets is equal to the taker order's base asset, push it to `quoteMakerOrders`
-            // Ignore Otherwise
-            if (takerOrder.baseAssetAddress == makerOrders[i].baseAssetAddress) {
-                // For base maker order, the side should always be the opposite of the taker order's
-                require(takerOrder.side != makerOrders[i].side, "INVALID_SIDE");
-
-                if (baseMakerOrders[takerOrderInfo.orderHash].length > 0) {
-                    // Check if all makerOrders are for the same asset pair
-                    require(baseMakerOrders[takerOrderInfo.orderHash][0].baseAssetAddress == makerOrders[i].baseAssetAddress, "baseMakerOrders: wrong baseAssetAddress");
-                    require(baseMakerOrders[takerOrderInfo.orderHash][0].quoteAssetAddress == makerOrders[i].quoteAssetAddress, "baseMakerOrders: wrong quoteAssetAddress");
-                }
-                baseMakerOrders[takerOrderInfo.orderHash].push(makerOrders[i]);
-            } else if (takerOrder.quoteAssetAddress == makerOrders[i].baseAssetAddress) {
-                // For quote maker order, the side should always be the same as the taker order's
-                require(takerOrder.side == makerOrders[i].side, "INVALID_SIDE");
-
-                if (quoteMakerOrders[takerOrderInfo.orderHash].length > 0) {
-                    // Check if all makerOrders are for the same asset pair
-                    require(quoteMakerOrders[takerOrderInfo.orderHash][0].baseAssetAddress == makerOrders[i].baseAssetAddress, "quoteMakerOrders: wrong baseAssetAddress");
-                    require(quoteMakerOrders[takerOrderInfo.orderHash][0].quoteAssetAddress == makerOrders[i].quoteAssetAddress, "quoteMakerOrders: wrong quoteAssetAddress");
-                }
-                quoteMakerOrders[takerOrderInfo.orderHash].push(makerOrders[i]);
-            }
-        }
-
-        // Make sure all the maker orders share the same quote asset:
-        // Note that with the previous checks, we could only guarantee that maker orders match the first order in base and quote queues, respectively;
-        // in order to check both queues, we need to further validate the match between the first order in base and quote queues
-        if (baseMakerOrders[takerOrderInfo.orderHash].length > 0 && quoteMakerOrders[takerOrderInfo.orderHash].length > 0) {
-            require(baseMakerOrders[takerOrderInfo.orderHash][0].quoteAssetAddress == quoteMakerOrders[takerOrderInfo.orderHash][0].quoteAssetAddress, "INVALID_QUOTE_ASSET");
-        }
-    }
-
-    /**
-     * Execute orders in batches.
-     * Only Whitelistlisted (DEX) have the access permission.
-     *
-     * The function will iteratively execute each pair of orders
-     */
-    function batchExecuteInstantExchangeTrade(
-        Order[] memory takerOrders,
-        bytes[] memory takerSignatures,
-        uint256 threshold,
-        uint256[] memory makerContractFees,
-        uint256[] memory takerContractFees,
-        address[] memory contractFeeAddresses
-    )
-        public
-        onlyWhitelisted
-        whenNotPaused
-        nonReentrant
-    {
-        require(takerOrders.length == takerSignatures.length, "ORDER_LENGTH_MISMATCH");
-        require(takerOrders.length == makerContractFees.length, "CONTRACT_FEE_ADDRESS_LENGTH_MISMATCH");
-        require(takerOrders.length == takerContractFees.length, "CONTRACT_FEE_ADDRESS_LENGTH_MISMATCH");
-        require(takerOrders.length == contractFeeAddresses.length, "CONTRACT_FEE_ADDRESS_LENGTH_MISMATCH");
-
-        for(uint i = 0; i < takerOrders.length; i++){
-            _setContractFee(makerContractFees[i], takerContractFees[i]);
-
-            _executeInstantExchangeTrade(takerOrders[i], takerSignatures[i], threshold, contractFeeAddresses[i]);
-        }
-    }
-
-    /**
-     * Execute all the recorded base maker orders and quote maker orders for a specific taker order.
-     * The function should be called after `recordInstantExchangeOrders`
-     * Only Whitelistlisted (DEX) have the access permission.
-     */
-    function executeInstantExchangeTrade(
-        Order memory takerOrder,
-        bytes memory takerSignature,
-        uint256 threshold,
-        uint256 makerContractFee,
-        uint256 takerContractFee,
-        address contractFeeAddress
-    )
-        public
-        onlyWhitelisted
-        whenNotPaused
-        nonReentrant
-    {
-        _setContractFee(makerContractFee, takerContractFee);
-
-        _executeInstantExchangeTrade(takerOrder, takerSignature, threshold, contractFeeAddress);
-    }
 
     /**
      * Execute orders in batches.
@@ -526,157 +343,6 @@ contract Boomflow is WhitelistAdminRole, WhitelistedRole, ReentrancyGuard, LibSi
             makerFeePercentage = _makerFeePercentage;
             takerFeePercentage = _takerFeePercentage;
         }
-    }
-
-    /**
-     * Execute all the recorded base maker orders and quote maker orders for a specific taker order.
-     * The function should be called after `recordInstantExchangeOrders`
-     * Only Whitelistlisted (DEX) have the access permission.
-     *
-     * The function will atomically perform the following operations:
-     *
-     *      1. Impersonate a taker order between the taker-owned asset and intermediate asset
-     *      2. Calculate the results for the first exchange roundtrip
-     *      3. Impersonate another taker order between intermediate asset the taker-asked asset
-     *      4. Calculate the results for the second exchange roundtrip
-     *      5. Settle all the exchanges
-     *
-     * Requirements:
-     * - The length of base and quote makerOrder lists should be either both zero or both nonzero
-     * - The amount of intermediate asset left after the second exchange roundtrip should be less than `threshold`
-     */
-    function _executeInstantExchangeTrade(
-        Order memory takerOrder,
-        bytes memory takerSignature,
-        uint256 threshold,
-        address contractFeeAddress
-    )
-        internal
-    {
-        OrderInfo memory takerOrderInfo = getOrderInfo(takerOrder);
-
-        // Either the taker order is still valid or we revert
-        assertFillableOrder(
-            takerOrder,
-            takerOrderInfo,
-            takerSignature
-        );
-
-        Order[] memory firstOrderLists;
-        Order[] memory secondOrderLists;
-
-        // If taker order is buy, then it goes through 1st exchange roundtrip
-        // with quote maker orders, then base maker orders; vice versa
-        if (!takerOrder.side) {
-            firstOrderLists = baseMakerOrders[takerOrderInfo.orderHash];
-            secondOrderLists = quoteMakerOrders[takerOrderInfo.orderHash];
-        } else {
-            firstOrderLists = quoteMakerOrders[takerOrderInfo.orderHash];
-            secondOrderLists = baseMakerOrders[takerOrderInfo.orderHash];
-        }
-
-        // Two makerOrder lists have either both zero lengths or nonzero lengths
-        require(
-            (firstOrderLists.length != 0) == (secondOrderLists.length != 0),
-            "INVALID_LENGTH"
-        );
-
-        // Simply cancel the takerOrder if orderlists are empty
-        if (firstOrderLists.length > 0) {
-            // Mimic 1st roundtrip takerOrder: A-B.
-            // Note that the constructed taker order is always on Sell side
-            // because based on the rules for instant exchange asset pairs,
-            // the intermediate asset is always the quote asset.
-            Order memory firstTakerOrder = Order({
-                userAddress: takerOrder.userAddress,
-                amount: takerOrder.amount,
-                price: takerOrder.price,
-                orderType: takerOrder.orderType,
-                side: false,
-                salt: takerOrder.salt,
-                baseAssetAddress: firstOrderLists[0].baseAssetAddress,
-                quoteAssetAddress: firstOrderLists[0].quoteAssetAddress,
-                feeAddress: address(0),
-                makerFeePercentage: 0,
-                takerFeePercentage: 0
-            });
-
-            // Calculate matching results for the 1st roundtrip
-            LibFillResults.MatchedMarketFillResults memory firstMatchedResults = _calculateMarketOrder(firstTakerOrder, firstOrderLists, takerOrderInfo, firstTakerOrder.amount, contractFeeAddress);
-
-            // Mimic 2nd roundtrip takerOrder: C-B
-            // Note that the constructed taker order is always on Buy side
-            // for the same reason the 1st taker order is always on Sell side
-            Order memory secondTakerOrder = Order({
-                userAddress: takerOrder.userAddress,
-                amount: firstMatchedResults.totalTakerFill,
-                price: takerOrder.price,
-                orderType: takerOrder.orderType,
-                side: true,
-                salt: takerOrder.salt,
-                baseAssetAddress: secondOrderLists[0].baseAssetAddress,
-                quoteAssetAddress: secondOrderLists[0].quoteAssetAddress,
-                feeAddress: takerOrder.feeAddress,
-                makerFeePercentage: 0,
-                takerFeePercentage: takerOrder.takerFeePercentage
-            });
-
-            // Calculate matching results for the 2nd roundtrip
-            LibFillResults.MatchedMarketFillResults memory secondMatchedResults = _calculateMarketOrder(secondTakerOrder, secondOrderLists, takerOrderInfo, secondTakerOrder.amount, contractFeeAddress);
-
-            // Ensure that there is almost no intermediate B left
-            // Note that it is very likely that the match is not perfect, and in the case where there are a slight
-            // amount of B left, we would still allow the transaction and transfer B to the user as a by-product
-            if (SafeMath.sub(firstMatchedResults.totalTakerFill, secondMatchedResults.totalTradeAmount) <= threshold) {
-                // Settle the result for takerOrder
-                updateFilledStates(
-                    takerOrderInfo,
-                    secondMatchedResults.totalTakerFee,
-                    secondMatchedResults.totalTakerContractFee,
-                    contractFeeAddress,
-                    takerOrder.side ? firstMatchedResults.totalTradeFunds : firstMatchedResults.totalTradeAmount
-                );
-
-                // Settle maker orders from 1st round trip
-                for (uint i = 0; i < firstOrderLists.length; i++) {
-                    // Update exchange states
-                    OrderInfo memory makerOrderInfo = getOrderInfo(firstOrderLists[i]);
-                    updateFilledStates(
-                        makerOrderInfo,
-                        firstMatchedResults.fillResults[i].makerFee,
-                        firstMatchedResults.fillResults[i].makerContractFee,
-                        contractFeeAddress,
-                        firstMatchedResults.fillResults[i].tradeAmount
-                    );
-
-                    // Settle orders
-                    settleTrade(firstOrderLists[i], takerOrder, contractFeeAddress, firstMatchedResults.fillResults[i]);
-                }
-
-                // Settle maker orders from 2st round trip
-                for (uint i = 0; i < secondOrderLists.length; i++) {
-                    // Update exchange states
-                    OrderInfo memory makerOrderInfo = getOrderInfo(secondOrderLists[i]);
-                    updateFilledStates(
-                        makerOrderInfo,
-                        secondMatchedResults.fillResults[i].makerFee,
-                        secondMatchedResults.fillResults[i].makerContractFee,
-                        contractFeeAddress,
-                        secondMatchedResults.fillResults[i].tradeAmount
-                    );
-
-                    // Settle orders
-                    settleTrade(secondOrderLists[i], takerOrder, contractFeeAddress, secondMatchedResults.fillResults[i]);
-                }
-            }
-        }
-
-        // Delete the stored maker orders
-        delete baseMakerOrders[takerOrderInfo.orderHash];
-        delete quoteMakerOrders[takerOrderInfo.orderHash];
-
-        // Cancel the taker order
-        finalizeOrder(takerOrder, takerSignature);
     }
 
     /**
@@ -952,68 +618,4 @@ contract Boomflow is WhitelistAdminRole, WhitelistedRole, ReentrancyGuard, LibSi
         }
     }
 
-    function _min(uint256 value1, uint256 value2) internal pure returns (uint256) {
-        if (value1 > value2) {
-            return value2;
-        }
-        return value1;
-    }
-
-    // Calculate the matching results of one taker order against multiple maker orders
-    function _calculateMarketOrder(
-        Order memory takerOrder,
-        Order[] memory makerOrders,
-        OrderInfo memory takerOrderInfo,
-        uint256 takerOrderMax,
-        address contractFeeAddress
-    )
-        internal
-        view
-        returns (LibFillResults.MatchedMarketFillResults memory matchedMarketFillResults)
-    {
-        // Initialize fill results
-        matchedMarketFillResults.totalMakerFill = 0;
-        matchedMarketFillResults.totalTakerFill = 0;
-        matchedMarketFillResults.totalTradeAmount = 0;
-        matchedMarketFillResults.totalTradeFunds = 0;
-        matchedMarketFillResults.totalTakerFee = 0;
-        matchedMarketFillResults.totalTakerContractFee = 0;
-
-        matchedMarketFillResults.fillResults = new LibFillResults.MatchedFillResults[](makerOrders.length);
-
-        for (uint i = 0; i < makerOrders.length; i++) {
-            // Get maker order info
-            OrderInfo memory makerOrderInfo = getOrderInfo(makerOrders[i]);
-
-            // Calculate the matching result between one maker and one taker order
-            LibFillResults.MatchedFillResults memory matchedFillResults = LibFillResults.calculateMatchedFillResults(
-                makerOrders[i],
-                takerOrder,
-                makerOrderInfo.filledAmount,
-                SafeMath.add(takerOrderInfo.filledAmount, matchedMarketFillResults.totalTakerFill),
-                max[makerOrderInfo.orderHash],
-                takerOrderMax,
-                contractFeeAddress,
-                makerFeePercentage,
-                takerFeePercentage
-            );
-
-            // Record the match results
-            matchedMarketFillResults.fillResults[i] = matchedFillResults;
-
-            matchedMarketFillResults.totalMakerFill += matchedMarketFillResults.fillResults[i].makerFillAmount;
-            matchedMarketFillResults.totalTakerFill += matchedMarketFillResults.fillResults[i].takerFillAmount;
-            matchedMarketFillResults.totalTradeAmount += matchedMarketFillResults.fillResults[i].tradeAmount;
-            matchedMarketFillResults.totalTradeFunds += matchedMarketFillResults.fillResults[i].tradeFunds;
-            matchedMarketFillResults.totalTakerFee += matchedMarketFillResults.fillResults[i].takerFee;
-            matchedMarketFillResults.totalTakerContractFee += matchedMarketFillResults.fillResults[i].takerContractFee;
-        }
-
-        // Reset all the temporarily cancelled orders
-        /*for (uint i = 0; i < makerOrders.length; i++) {
-            cancelled[orderHashes[i]] = false;
-        }*/
-
-        return matchedMarketFillResults;
-    }
 }
